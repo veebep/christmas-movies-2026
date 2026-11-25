@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Christmas Movie Countdown 2026</title>
+<script src="https://cdn.jsdelivr.net/npm/d3@7"></script>
+<style>
+:root {
+  --font-anthropic-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-anthropic-serif: Georgia, "Iowan Old Style", "Times New Roman", serif;
+  --cds-font-size-caption: 12px; --cds-font-size-body: 14px; --cds-font-size-heading: 16px; --cds-font-size-title: 28px;
+  --cds-font-weight-medium: 600;
+  --cds-gap-xs: 4px; --cds-gap-sm: 8px; --cds-gap-md: 12px; --cds-gap-lg: 20px; --cds-gap-xl: 32px;
+  --cds-pad-xs: 4px; --cds-pad-sm: 8px; --cds-pad-md: 12px; --cds-pad-lg: 18px; --cds-pad-xl: 28px;
+  --cds-radius: 10px;
+  --color-bg: #f2f5ec; --color-panel: #ffffff; --color-fg: #1e2a1f; --color-fg-muted: #66735f; --color-border-line: #dde4d2;
+  --color-bad: #8e2626;
+  --cds-chart-muted: #9aa393; --cds-chart-grid: #e6ebdf; --cds-chart-axis: #c5cdbb; --cds-chart-reference: #8a8f85;
+  --cds-text-secondary: #66735f;
+  --cds-surface-popover: #ffffff; --cds-border: #dde4d2; --cds-shadow-popover: 0 6px 20px rgba(30, 42, 31, .14);
+  --chart-0: #2d6a4f; --chart-1: #b3262e; --chart-2: #d99a2b; --chart-3: #52b788; --chart-4: #2b8c8c; --chart-5: #7a5c3e; --chart-6: #a8415b; --chart-7: #8a8f85;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0e130e; --color-panel: #192019; --color-fg: #f0efec; --color-fg-muted: #9a9a94; --color-border-line: #2a322a;
+    --color-bad: #ec7e7e;
+    --cds-chart-muted: #6f766c; --cds-chart-grid: #232b23; --cds-chart-axis: #3a433a; --cds-chart-reference: #8a8f85;
+    --cds-text-secondary: #a3a79e;
+    --cds-surface-popover: #222a22; --cds-border: #333c33; --cds-shadow-popover: 0 6px 20px rgba(0, 0, 0, .5);
+    --chart-0: #488166; --chart-1: #e05a5f; --chart-2: #f1b454; --chart-3: #72d0a2; --chart-4: #4ea4a4; --chart-5: #917356; --chart-6: #c05c73; --chart-7: #a3a79e;
+  }
+}
+html { background: var(--color-bg); }
+body { margin: 0; padding: 28px 20px 40px; background: var(--color-bg); color: var(--color-fg); font-family: var(--font-anthropic-sans); }
+.xm { max-width: 1120px; margin: 0 auto; }
+[hidden] { display: none !important; }
+.dash-skeleton { position: relative; }
+.dash-skeleton > * { visibility: hidden; }
+.dash-skeleton::after { content: ""; position: absolute; inset: 0; border-radius: var(--cds-radius); background: var(--color-border-line); opacity: .45; animation: xm-pulse 1.4s ease-in-out infinite; }
+@keyframes xm-pulse { 50% { opacity: .2; } }
+@media (prefers-reduced-motion: reduce) { .dash-skeleton::after { animation: none; } }
+.xm-refresh { font: inherit; font-size: var(--cds-font-size-caption); color: var(--color-fg); background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: 999px; padding: 2px 10px; cursor: pointer; margin-left: 6px; }
+@media (max-width: 560px) { .xm-today-tag { display: none; } }
+.xm-refresh:hover { border-color: var(--chart-1); }
+</style>
+<script>
+// ===== Settings =====
+// The sheet must be viewable by "Anyone with the link" (or published to the web) for this page to read it.
+window.XM_CONFIG = {
+  sheetId: '1tfbdytFc2vNnLOa20W7hhkeX8yAHUvICIILF5MqGE4s',
+  sheetName: 'Watch Plan',
+  // Optional: paste a "Publish to web" CSV link here instead (File > Share > Publish to web > Watch Plan > CSV).
+  csvUrl: '',
+  // Year for dates written like "Nov 24"
+  year: '2026',
+  // Reload the sheet every N minutes while the page is open (0 = off)
+  autoRefreshMinutes: 10
+};
+
+// ===== Tiny runtime that stands in for the Claude dashboard =====
+(function () {
+  const state = {};
+  const loaders = {};
+  const calcs = [];
+  const draws = [];
+  window.dash = {
+    colors: Array.from({ length: 8 }, (_, i) => 'var(--chart-' + i + ')'),
+    loader: (id, o) => { loaders[id] = o; },
+    calc: (id, o) => { calcs.push([id, o]); },
+    data: (id) => state[id] || { status: 'loading', data: [] },
+    draw: (name, fn) => { draws.push([name, fn]); },
+    redraw: () => draws.forEach(([n, fn]) => document.querySelectorAll('[data-draw="' + n + '"]').forEach((el) => {
+      try { fn(el); } catch (e) { console.error('Drawing ' + n + ' failed', e); }
+    }))
+  };
+  let loading = false;
+  async function load() {
+    if (loading) return;
+    loading = true;
+    const c = window.XM_CONFIG;
+    const url = c.csvUrl || ('https://docs.google.com/spreadsheets/d/' + c.sheetId + '/gviz/tq?tqx=out:csv&headers=1&sheet=' + encodeURIComponent(c.sheetName));
+    const err = document.getElementById('xm-loaderror');
+    try {
+      const res = await fetch(url + (url.includes('?') ? '&' : '?') + '_=' + Date.now());
+      if (!res.ok) throw new Error('The sheet answered with HTTP ' + res.status + '.');
+      const text = await res.text();
+      if (/^\s*</.test(text)) throw new Error('The sheet isn’t shared publicly yet.');
+      const values = d3.csvParseRows(text);
+      const out = await loaders.plan.fn({ answer: { values } });
+      state.plan = { status: 'ok', data: Array.isArray(out) ? out : out.rows };
+      calcs.forEach(([id, o]) => { state[id] = { status: 'ok', data: o.fn(...o.inputs.map((i) => state[i].data)) }; });
+      if (err) err.hidden = true;
+      const up = document.getElementById('xm-updated');
+      if (up) up.textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) + '.';
+    } catch (e) {
+      console.error(e);
+      if (!state.plan || state.plan.status !== 'ok') {
+        ['plan'].concat(calcs.map(([id]) => id)).forEach((id) => { state[id] = { status: 'error', data: [] }; });
+      }
+      if (err) { err.textContent = 'Couldn’t read the Google Sheet. ' + (e.message || '') + ' Make sure it’s shared as “Anyone with the link can view”.'; err.hidden = false; }
+    }
+    loading = false;
+    dash.redraw();
+  }
+  window.xmStart = function () {
+    dash.redraw();
+    load();
+    const btn = document.getElementById('xm-refresh');
+    if (btn) btn.addEventListener('click', load);
+    const mins = +window.XM_CONFIG.autoRefreshMinutes;
+    if (mins > 0) setInterval(() => { if (!document.hidden) load(); }, mins * 60000);
+    let w = document.querySelector('.xm').clientWidth, t;
+    new ResizeObserver(() => {
+      const nw = document.querySelector('.xm').clientWidth;
+      if (nw === w) return;
+      w = nw; clearTimeout(t); t = setTimeout(dash.redraw, 120);
+    }).observe(document.querySelector('.xm'));
+  };
+})();
+</script>
+</head>
+<body>
+<style>
+.xm { display: flex; flex-direction: column; gap: var(--cds-gap-lg); color: var(--color-fg); font-family: var(--font-anthropic-sans); }
+.xm-stripe { height: 6px; border-radius: 3px; margin-bottom: var(--cds-gap-md); }
+.xm-title { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); margin: 0; line-height: 1.15; }
+.xm-lede { margin: var(--cds-gap-sm) 0 0; font-size: var(--cds-font-size-body); color: var(--color-fg-muted); line-height: 1.5; }
+.xm-lede b { color: var(--color-fg); font-weight: var(--cds-font-weight-medium); font-variant-numeric: tabular-nums; }
+.xm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: var(--cds-gap-md); }
+.xm-card { background: var(--color-panel); border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: var(--cds-pad-lg); min-width: 0; }
+.xm-kpi-label { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0 0 var(--cds-gap-xs); }
+.xm-kpi-val { font-family: var(--font-anthropic-serif); font-weight: 400; font-size: var(--cds-font-size-title); font-variant-numeric: tabular-nums; line-height: 1.1; white-space: nowrap; }
+.xm-kpi-sub { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin-top: var(--cds-gap-xs); }
+.xm-h { font-size: var(--cds-font-size-heading); font-weight: var(--cds-font-weight-medium); margin: 0 0 var(--cds-gap-xs); }
+.xm-cap { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0 0 var(--cds-gap-md); }
+.xm-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: var(--cds-gap-md); }
+.xm-legend { display: flex; flex-wrap: wrap; gap: var(--cds-gap-xs) var(--cds-gap-md); font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); margin: 0 0 var(--cds-gap-md); padding: 0; list-style: none; }
+.xm-legend li { display: inline-flex; align-items: center; gap: 6px; }
+.xm-sw { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.xm-sw-hollow { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 2px solid var(--color-fg-muted); box-sizing: border-box; }
+.xm-line-sw { width: 16px; height: 0; border-top: 2px solid; display: inline-block; }
+.xm-line-sw.dashed { border-top-style: dashed; border-color: var(--cds-chart-muted); }
+.xm-error { color: var(--color-bad); font-size: var(--cds-font-size-body); }
+
+/* calendar */
+.xm-cal { position: relative; min-height: 220px; }
+.xm-cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.xm-cal-dow { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); text-align: center; padding-bottom: 2px; }
+.xm-day { border: 1px solid var(--color-border-line); border-radius: var(--cds-radius); padding: 6px; min-height: 58px; display: flex; flex-direction: column; gap: 4px; cursor: default; background: var(--color-bg); min-width: 0; }
+.xm-day.out { background: transparent; border-style: dashed; opacity: .45; }
+.xm-day.past { opacity: .7; }
+.xm-day.today { border-width: 2px; }
+.xm-day-num { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); font-variant-numeric: tabular-nums; display: flex; justify-content: space-between; gap: 2px; white-space: nowrap; overflow: hidden; }
+.xm-day.today .xm-day-num { color: var(--color-fg); font-weight: var(--cds-font-weight-medium); }
+.xm-dots { display: flex; flex-wrap: wrap; gap: 3px; }
+.xm-dot { width: 10px; height: 10px; border-radius: 50%; box-sizing: border-box; border: 2px solid; }
+.xm-tip { position: absolute; z-index: 5; pointer-events: none; background: var(--cds-surface-popover); border: 1px solid var(--cds-border); box-shadow: var(--cds-shadow-popover); border-radius: var(--cds-radius); padding: 8px 10px; font-size: var(--cds-font-size-caption); max-width: 260px; line-height: 1.45; }
+.xm-tip strong { display: block; margin-bottom: 2px; font-weight: var(--cds-font-weight-medium); }
+.xm-tip .muted { color: var(--cds-text-secondary); }
+
+/* charts */
+.xm-chart { position: relative; min-height: 240px; }
+.xm-chart svg { display: block; overflow: visible; }
+.xm-chart .tick text { fill: var(--cds-text-secondary); font-size: var(--cds-font-size-caption); font-family: var(--font-anthropic-sans); }
+.xm-chart .domain, .xm-chart .tick line { stroke: var(--cds-chart-axis); }
+.xm-chart .grid line { stroke: var(--cds-chart-grid); }
+
+/* category bars */
+.xm-cats { position: relative; min-height: 200px; display: flex; flex-direction: column; gap: 10px; }
+.xm-cat-row { display: grid; grid-template-columns: minmax(90px, 32%) 1fr auto; align-items: center; gap: var(--cds-gap-sm); font-size: var(--cds-font-size-caption); }
+.xm-cat-name { display: flex; align-items: center; gap: 6px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.xm-track { height: 14px; display: flex; border-radius: 3px; overflow: hidden; }
+.xm-seg-left { background: var(--cds-chart-muted); opacity: .35; }
+.xm-cat-val { font-variant-numeric: tabular-nums; color: var(--color-fg-muted); white-space: nowrap; }
+
+/* tables */
+.xm-tablewrap { overflow-x: auto; min-height: 120px; }
+.xm-table { width: 100%; border-collapse: collapse; font-size: var(--cds-font-size-caption); }
+.xm-table th { text-align: left; font-weight: var(--cds-font-weight-medium); color: var(--color-fg-muted); padding: 6px 8px; border-bottom: 1px solid var(--color-border-line); white-space: nowrap; }
+.xm-table td { padding: 7px 8px; border-bottom: 1px solid var(--color-border-line); vertical-align: top; }
+.xm-table td.num, .xm-table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.xm-table td.when { color: var(--color-fg-muted); }
+.xm-table .xm-sw { margin-right: 6px; vertical-align: middle; }
+.xm-empty { font-size: var(--cds-font-size-body); color: var(--color-fg-muted); margin: var(--cds-gap-sm) 0 0; }
+.xm-foot { font-size: var(--cds-font-size-caption); color: var(--color-fg-muted); }
+</style>
+
+<div class="xm">
+  <header id="header">
+    <div class="xm-stripe" aria-hidden="true"></div>
+    <h1 class="xm-title">Christmas Movie Countdown 2026</h1>
+    <p class="xm-lede"><b data-draw="lede-watched" data-source="summary" data-field="watched" data-row="0">—</b> of <b data-draw="lede-total" data-source="summary" data-field="total" data-row="0">—</b> movies watched, <b data-draw="lede-days">—</b> days until Christmas Eve. Next up: <b data-draw="lede-next">—</b></p>
+  </header>
+
+  <section class="xm-kpis" id="kpis" aria-label="Headline numbers">
+    <div class="xm-card" id="kpi-watched">
+      <p class="xm-kpi-label">Watched</p>
+      <div class="xm-kpi-val"><span data-draw="k-watched" data-source="summary" data-field="watched" data-row="0">—</span></div>
+      <div class="xm-kpi-sub"><span data-draw="k-pct" data-source="summary" data-field="pct" data-row="0">—</span>% of the plan</div>
+    </div>
+    <div class="xm-card" id="kpi-left">
+      <p class="xm-kpi-label">Still to watch</p>
+      <div class="xm-kpi-val"><span data-draw="k-left" data-source="summary" data-field="left" data-row="0">—</span></div>
+      <div class="xm-kpi-sub">through Christmas Eve</div>
+    </div>
+    <div class="xm-card" id="kpi-score">
+      <p class="xm-kpi-label">Average score</p>
+      <div class="xm-kpi-val"><span data-draw="k-avg" data-source="summary" data-field="avgScore" data-row="0">—</span></div>
+      <div class="xm-kpi-sub">out of 10, from <span data-draw="k-scored" data-source="summary" data-field="scored" data-row="0">—</span> scored</div>
+    </div>
+    <div class="xm-card" id="kpi-cozy">
+      <p class="xm-kpi-label">Average cozy</p>
+      <div class="xm-kpi-val"><span data-draw="k-cozy" data-source="summary" data-field="avgCozy" data-row="0">—</span></div>
+      <div class="xm-kpi-sub">out of 5</div>
+    </div>
+    <div class="xm-card" id="kpi-days">
+      <p class="xm-kpi-label">Days to Christmas Eve</p>
+      <div class="xm-kpi-val"><span data-draw="k-days">—</span></div>
+      <div class="xm-kpi-sub">Thu, Dec 24</div>
+    </div>
+  </section>
+
+  <section class="xm-card" id="calendar">
+    <h2 class="xm-h">Movie advent calendar</h2>
+    <p class="xm-cap">One dot per movie. Filled dots are watched. Point at a day to see what's on.</p>
+    <ul class="xm-legend" aria-label="Categories">
+      <li><span class="xm-sw" data-cat="Hallmark 2026"></span>Hallmark 2026</li>
+      <li><span class="xm-sw" data-cat="Hallmark Encore"></span>Hallmark Encore</li>
+      <li><span class="xm-sw" data-cat="Netflix 2026"></span>Netflix 2026</li>
+      <li><span class="xm-sw" data-cat="Netflix Favorite"></span>Netflix Favorite</li>
+      <li><span class="xm-sw" data-cat="Classic"></span>Classic</li>
+      <li><span class="xm-sw" data-cat="Wildcard"></span>Wildcard</li>
+      <li><span class="xm-sw-hollow"></span>Not watched yet</li>
+    </ul>
+    <div class="xm-cal dash-skeleton" data-draw="cal" data-source="plan"></div>
+  </section>
+
+  <div class="xm-two">
+    <section class="xm-card" id="progress">
+      <h2 class="xm-h">On pace?</h2>
+      <p class="xm-cap">Movies planned vs watched, adding up day by day</p>
+      <ul class="xm-legend">
+        <li><span class="xm-line-sw dashed"></span>Planned</li>
+        <li><span class="xm-line-sw" data-line="watched"></span>Watched</li>
+      </ul>
+      <div class="xm-chart dash-skeleton" data-draw="progress" data-source="progress"></div>
+    </section>
+
+    <section class="xm-card" id="categories">
+      <h2 class="xm-h">Watched by category</h2>
+      <p class="xm-cap">Colored part is watched, the rest is still to come</p>
+      <div class="xm-cats dash-skeleton" data-draw="cats" data-source="byCategory"></div>
+      <h3 class="xm-h" style="margin-top: var(--cds-gap-lg);">Best in each category</h3>
+      <div class="xm-tablewrap">
+        <table class="xm-table" id="best-table" data-source="byCategory" data-row-key="category">
+          <thead><tr><th data-field="category">Category</th><th data-field="topMovie">Top movie</th><th class="num" data-field="topScore">Score</th></tr></thead>
+          <tbody data-draw="best"></tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <div class="xm-two">
+    <section class="xm-card" id="upnext">
+      <h2 class="xm-h">Up next</h2>
+      <p class="xm-cap">The next movies on the plan you haven't watched</p>
+      <div class="xm-tablewrap">
+        <table class="xm-table" id="upnext-table" data-source="plan" data-row-key="Movie">
+          <thead><tr><th data-field="Date">Date</th><th data-field="Movie">Movie</th><th data-field="Where &amp; when">Where &amp; when</th></tr></thead>
+          <tbody data-draw="upnext"></tbody>
+        </table>
+      </div>
+      <p class="xm-empty" id="upnext-empty" hidden>All caught up. Merry Christmas!</p>
+    </section>
+
+    <section class="xm-card" id="toprated">
+      <h2 class="xm-h">Your top 10 so far</h2>
+      <p class="xm-cap">Ranked by your score, then cozy rating</p>
+      <div class="xm-tablewrap" id="top-wrap">
+        <table class="xm-table" id="top-table" data-source="plan" data-row-key="Movie">
+          <thead><tr><th class="num">#</th><th data-field="Movie">Movie</th><th class="num" data-field="My Score (1–10)">Score</th><th class="num" data-field="Cozy (1–5)">Cozy</th></tr></thead>
+          <tbody data-draw="top"></tbody>
+        </table>
+      </div>
+      <p class="xm-empty" id="top-empty" hidden>Score a movie on the Watch Plan tab of your sheet to start your ranking.</p>
+    </section>
+  </div>
+
+  <p class="xm-foot">Live from the Christmas Movie Countdown Google Sheet. <span id="xm-updated"></span> <button type="button" class="xm-refresh" id="xm-refresh">Refresh</button></p>
+  <p class="xm-error" id="xm-loaderror" hidden></p>
+</div>
+
+<script>
+// Sheet rows into plain rows
+dash.loader('plan', {
+  fn: ({ answer }) => {
+    const values = (answer && answer.values) || [];
+    if (!values.length) return { columns: [], rows: [] };
+    const header = values[0].map((h) => String(h).trim());
+    const months = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+    const pad = (n) => String(n).padStart(2, '0');
+    const toDate = (s) => {
+      if (!s) return null;
+      let m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (m) return m[1] + '-' + m[2] + '-' + m[3];
+      m = String(s).match(/^([A-Za-z]{3})[a-z]*\.?\s+(\d{1,2})(?:,?\s+(\d{4}))?/);
+      if (m && months[m[1].toLowerCase()]) return (m[3] || XM_CONFIG.year) + '-' + pad(months[m[1].toLowerCase()]) + '-' + pad(m[2]);
+      m = String(s).match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+      if (m) return (m[3] ? (m[3].length === 2 ? '20' + m[3] : m[3]) : XM_CONFIG.year) + '-' + pad(m[1]) + '-' + pad(m[2]);
+      return String(s);
+    };
+    const numCols = ['My Score (1–10)', 'Cozy (1–5)'];
+    const rows = values.slice(1).filter((r) => r.some((c) => c !== '' && c != null)).map((r) => {
+      const o = {};
+      header.forEach((h, i) => {
+        let v = r[i] === undefined || r[i] === '' ? null : r[i];
+        if (h === 'Date') v = toDate(v);
+        else if (h === 'Watched') v = String(v).toUpperCase() === 'TRUE';
+        else if (numCols.includes(h) && v !== null) v = isNaN(+v) ? v : +v;
+        o[h] = v;
+      });
+      return o;
+    });
+    return { columns: header, rows };
+  }
+});
+
+dash.calc('summary', {
+  inputs: ['plan'],
+  title: 'Countdown totals',
+  description: 'Movies planned, watched and still to watch, with your average score and cozy rating.',
+  fn: (plan) => {
+    const rows = plan.filter((r) => r['Movie']);
+    const isW = (v) => v === true || String(v).toUpperCase() === 'TRUE';
+    const num = (v) => (v === null || v === undefined || v === '' || isNaN(+v)) ? null : +v;
+    const avg = (a) => a.length ? Math.round(a.reduce((s, x) => s + x, 0) / a.length * 10) / 10 : null;
+    const scores = rows.map((r) => num(r['My Score (1–10)'])).filter((v) => v !== null);
+    const cozy = rows.map((r) => num(r['Cozy (1–5)'])).filter((v) => v !== null);
+    const watched = rows.filter((r) => isW(r['Watched'])).length;
+    return [{
+      total: rows.length,
+      watched,
+      left: rows.length - watched,
+      pct: rows.length ? Math.round(watched / rows.length * 100) : 0,
+      scored: scores.length,
+      avgScore: avg(scores),
+      avgCozy: avg(cozy)
+    }];
+  }
+});
+
+dash.calc('progress', {
+  inputs: ['plan'],
+  title: 'Planned vs watched by day',
+  description: 'Running count of movies planned and movies watched, by the date each is scheduled.',
+  fn: (plan) => {
+    const isW = (v) => v === true || String(v).toUpperCase() === 'TRUE';
+    const day = (v) => v == null ? null : String(typeof v === 'object' ? (v.date || v.dateTime || '') : v).slice(0, 10);
+    const by = new Map();
+    plan.filter((r) => r['Movie'] && day(r['Date'])).forEach((r) => {
+      const d = day(r['Date']);
+      const e = by.get(d) || { planned: 0, watched: 0 };
+      e.planned += 1;
+      if (isW(r['Watched'])) e.watched += 1;
+      by.set(d, e);
+    });
+    let p = 0, w = 0;
+    return [...by.keys()].sort().map((d) => {
+      p += by.get(d).planned; w += by.get(d).watched;
+      return { date: d, planned: p, watched: w };
+    });
+  }
+});
+
+dash.calc('byCategory', {
+  inputs: ['plan'],
+  title: 'Movies by category',
+  description: 'Movies planned and watched in each category, with your top-scored movie in each. Rows with no category count as Wildcard.',
+  fn: (plan) => {
+    const isW = (v) => v === true || String(v).toUpperCase() === 'TRUE';
+    const num = (v) => (v === null || v === undefined || v === '' || isNaN(+v)) ? null : +v;
+    const order = ['Hallmark 2026', 'Hallmark Encore', 'Netflix 2026', 'Netflix Favorite', 'Classic', 'Wildcard'];
+    const by = new Map(order.map((c) => [c, { category: c, total: 0, watched: 0, topMovie: null, topScore: null }]));
+    plan.filter((r) => r['Movie']).forEach((r) => {
+      const c = r['Category'] || 'Wildcard';
+      if (!by.has(c)) by.set(c, { category: c, total: 0, watched: 0, topMovie: null, topScore: null });
+      const e = by.get(c);
+      e.total += 1;
+      if (isW(r['Watched'])) e.watched += 1;
+      const s = num(r['My Score (1–10)']);
+      if (s !== null && (e.topScore === null || s > e.topScore)) { e.topScore = s; e.topMovie = r['Movie']; }
+    });
+    return [...by.values()].filter((e) => e.total > 0);
+  }
+});
+</script>
+
+<script>
+// Shared helpers
+window.xm = (function () {
+  const catIdx = { 'Classic': 0, 'Hallmark 2026': 1, 'Hallmark Encore': 2, 'Netflix Favorite': 4, 'Netflix 2026': 6, 'Wildcard': 7 };
+  const pad = (n) => String(n).padStart(2, '0');
+  const t = new Date();
+  const todayIso = t.getFullYear() + '-' + pad(t.getMonth() + 1) + '-' + pad(t.getDate());
+  const eve = new Date(2026, 11, 24);
+  const today0 = new Date(t.getFullYear(), t.getMonth(), t.getDate());
+  return {
+    color: (c) => dash.colors[catIdx[c || 'Wildcard'] ?? 7] || dash.colors[0],
+    isW: (v) => v === true || String(v).toUpperCase() === 'TRUE',
+    num: (v) => (v === null || v === undefined || v === '' || isNaN(+v)) ? null : +v,
+    day: (v) => v == null ? null : String(typeof v === 'object' ? (v.date || v.dateTime || '') : v).slice(0, 10),
+    todayIso,
+    daysToEve: Math.max(0, Math.round((eve - today0) / 86400000)),
+    fmtDay: d3.utcFormat('%a, %b %-d'),
+    fmtShort: d3.utcFormat('%b %-d'),
+    parse: (s) => new Date(s + 'T00:00:00Z'),
+    status: (id) => dash.data(id).status,
+    loading: (el, st) => el.classList.toggle('dash-skeleton', st === 'loading'),
+    fmt1: (v) => v === null || v === undefined ? '—' : (Math.round(v * 10) / 10).toString()
+  };
+})();
+
+// Static color touches (style only)
+document.querySelectorAll('.xm-sw[data-cat]').forEach((el) => { el.style.background = xm.color(el.getAttribute('data-cat')); });
+document.querySelectorAll('.xm-line-sw[data-line="watched"]').forEach((el) => { el.style.borderColor = dash.colors[1]; });
+document.querySelectorAll('.xm-stripe').forEach((el) => {
+  el.style.background = 'repeating-linear-gradient(135deg, ' + dash.colors[1] + ' 0 14px, ' + 'var(--color-panel) 14px 20px, ' + dash.colors[0] + ' 20px 34px, var(--color-panel) 34px 40px)';
+});
+</script>
+
+<script>
+// Headline numbers
+function xmSummaryDraw(field, fmt) {
+  return (el) => {
+    const s = dash.data('summary');
+    if (s.status !== 'ok' || !s.data || !s.data[0]) { el.textContent = '—'; return; }
+    const v = s.data[0][field];
+    el.textContent = fmt ? fmt(v) : (v === null || v === undefined ? '—' : String(v));
+  };
+}
+dash.draw('lede-watched', xmSummaryDraw('watched'));
+dash.draw('lede-total', xmSummaryDraw('total'));
+dash.draw('k-watched', xmSummaryDraw('watched'));
+dash.draw('k-pct', xmSummaryDraw('pct'));
+dash.draw('k-left', xmSummaryDraw('left'));
+dash.draw('k-avg', xmSummaryDraw('avgScore', xm.fmt1));
+dash.draw('k-scored', xmSummaryDraw('scored'));
+dash.draw('k-cozy', xmSummaryDraw('avgCozy', xm.fmt1));
+dash.draw('lede-days', (el) => { el.textContent = String(xm.daysToEve); });
+dash.draw('k-days', (el) => { el.textContent = String(xm.daysToEve); });
+
+dash.draw('lede-next', (el) => {
+  const p = dash.data('plan');
+  if (p.status !== 'ok') { el.textContent = '—'; return; }
+  const next = p.data
+    .filter((r) => r['Movie'] && !xm.isW(r['Watched']) && xm.day(r['Date']) && xm.day(r['Date']) >= xm.todayIso)
+    .sort((a, b) => xm.day(a['Date']).localeCompare(xm.day(b['Date'])))[0];
+  if (!next) { el.textContent = 'nothing left. Merry Christmas!'; return; }
+  const span = document.createElement('span');
+  span.setAttribute('data-source', 'plan');
+  span.setAttribute('data-field', 'Movie');
+  span.setAttribute('data-where', 'Movie=' + encodeURIComponent(next['Movie']));
+  span.textContent = next['Movie'];
+  const when = document.createElement('span');
+  when.textContent = ' (' + (xm.day(next['Date']) === xm.todayIso ? 'tonight' : xm.fmtDay(xm.parse(xm.day(next['Date'])))) + ')';
+  el.replaceChildren(span, when);
+});
+</script>
+
+<script>
+// Advent calendar
+dash.draw('cal', (el) => {
+  const p = dash.data('plan');
+  xm.loading(el, p.status);
+  if (p.status === 'error') { const m = document.createElement('p'); m.className = 'xm-error'; m.textContent = "Couldn't load the Watch Plan sheet."; el.replaceChildren(m); return; }
+  if (p.status !== 'ok') { el.replaceChildren(); return; }
+  const rows = p.data.filter((r) => r['Movie'] && xm.day(r['Date']));
+  if (!rows.length) { el.replaceChildren(); return; }
+  const byDay = d3.group(rows, (r) => xm.day(r['Date']));
+  const days = [...byDay.keys()].sort();
+  const first = xm.parse(days[0]), last = xm.parse(days[days.length - 1]);
+  const start = d3.utcDay.offset(first, -first.getUTCDay());
+  const end = d3.utcDay.offset(last, 6 - last.getUTCDay());
+  const all = d3.utcDay.range(start, d3.utcDay.offset(end, 1));
+  const iso = d3.utcFormat('%Y-%m-%d');
+
+  const grid = document.createElement('div');
+  grid.className = 'xm-cal-grid';
+  ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].forEach((d) => {
+    const h = document.createElement('div'); h.className = 'xm-cal-dow'; h.textContent = d; grid.appendChild(h);
+  });
+  const tip = document.createElement('div');
+  tip.className = 'xm-tip'; tip.hidden = true;
+
+  const show = (cell, d, movies) => {
+    tip.replaceChildren();
+    const s = document.createElement('strong');
+    s.textContent = xm.fmtDay(d) + (iso(d) === '2026-12-24' ? ' · Christmas Eve' : '');
+    tip.appendChild(s);
+    movies.forEach((r) => {
+      const line = document.createElement('div');
+      line.textContent = (xm.isW(r['Watched']) ? '✓ ' : '• ') + r['Movie'];
+      const sc = xm.num(r['My Score (1–10)']);
+      const sub = document.createElement('div');
+      sub.className = 'muted';
+      sub.textContent = [r['Category'] || 'Wildcard', r['Where & when'], sc !== null ? 'Score ' + sc : null].filter(Boolean).join(' · ');
+      tip.append(line, sub);
+    });
+    tip.hidden = false;
+    const W = el.clientWidth;
+    const tw = Math.min(260, W);
+    let left = cell.offsetLeft + cell.offsetWidth / 2 - tw / 2;
+    left = Math.max(0, Math.min(W - tw, left));
+    tip.style.width = tw + 'px';
+    tip.style.left = left + 'px';
+    tip.style.top = (cell.offsetTop + cell.offsetHeight + 6) + 'px';
+  };
+
+  all.forEach((d) => {
+    const k = iso(d);
+    const movies = byDay.get(k) || [];
+    const cell = document.createElement('div');
+    const inRange = d >= first && d <= last;
+    cell.className = 'xm-day' + (inRange ? '' : ' out') + (k < xm.todayIso && inRange ? ' past' : '') + (k === xm.todayIso ? ' today' : '');
+    if (k === xm.todayIso) cell.style.borderColor = dash.colors[1];
+    const num = document.createElement('div');
+    num.className = 'xm-day-num';
+    const a = document.createElement('span');
+    a.textContent = (d.getUTCDate() === 1 || k === iso(start) || k === iso(first)) ? xm.fmtShort(d) : String(d.getUTCDate());
+    num.appendChild(a);
+    if (k === '2026-12-24') { const st = document.createElement('span'); st.textContent = '★'; st.style.color = dash.colors[1]; num.appendChild(st); }
+    else if (k === xm.todayIso) { const st = document.createElement('span'); st.textContent = 'today'; st.className = 'xm-today-tag'; st.style.color = dash.colors[1]; num.appendChild(st); }
+    cell.appendChild(num);
+    if (movies.length) {
+      const dots = document.createElement('div');
+      dots.className = 'xm-dots';
+      movies.forEach((r) => {
+        const dot = document.createElement('span');
+        dot.className = 'xm-dot';
+        const c = xm.color(r['Category']);
+        dot.style.borderColor = c;
+        dot.style.background = xm.isW(r['Watched']) ? c : 'transparent';
+        dots.appendChild(dot);
+      });
+      cell.appendChild(dots);
+      cell.tabIndex = 0;
+      cell.setAttribute('aria-label', xm.fmtDay(d) + ': ' + movies.map((r) => r['Movie'] + (xm.isW(r['Watched']) ? ' (watched)' : '')).join(', '));
+      cell.addEventListener('mouseenter', () => show(cell, d, movies));
+      cell.addEventListener('focus', () => show(cell, d, movies));
+      cell.addEventListener('click', () => show(cell, d, movies));
+      cell.addEventListener('mouseleave', () => { tip.hidden = true; });
+      cell.addEventListener('blur', () => { tip.hidden = true; });
+    }
+    grid.appendChild(cell);
+  });
+  el.replaceChildren(grid, tip);
+});
+</script>
+
+<script>
+// Planned vs watched line chart
+dash.draw('progress', (el) => {
+  const p = dash.data('progress');
+  xm.loading(el, p.status);
+  if (p.status === 'error') { const m = document.createElement('p'); m.className = 'xm-error'; m.textContent = "Couldn't load the Watch Plan sheet."; el.replaceChildren(m); return; }
+  if (p.status !== 'ok' || !p.data || !p.data.length) { el.replaceChildren(); return; }
+  const data = p.data.map((r) => ({ d: xm.parse(r.date), iso: r.date, planned: +r.planned, watched: +r.watched }));
+  const W = Math.max(260, el.clientWidth), H = 240;
+  const m = { t: 10, r: 14, b: 26, l: 34 };
+  const x = d3.scaleUtc().domain(d3.extent(data, (r) => r.d)).range([m.l, W - m.r]);
+  const y = d3.scaleLinear().domain([0, d3.max(data, (r) => r.planned) || 1]).nice().range([H - m.b, m.t]);
+  const svg = d3.create('svg').attr('width', W).attr('height', H).attr('role', 'img')
+    .attr('aria-label', 'Line chart of movies planned and watched, adding up by date. ' + data[data.length - 1].watched + ' of ' + data[data.length - 1].planned + ' watched.');
+  svg.append('g').attr('class', 'grid').attr('transform', 'translate(' + m.l + ',0)')
+    .call(d3.axisLeft(y).ticks(5).tickSize(-(W - m.l - m.r)).tickFormat(''))
+    .call((g) => g.select('.domain').remove());
+  svg.append('g').attr('transform', 'translate(0,' + (H - m.b) + ')')
+    .call(d3.axisBottom(x).ticks(Math.max(2, Math.floor(W / 90))).tickFormat(xm.fmtShort).tickSizeOuter(0));
+  svg.append('g').attr('transform', 'translate(' + m.l + ',0)')
+    .call(d3.axisLeft(y).ticks(5).tickFormat(d3.format('d')))
+    .call((g) => g.select('.domain').remove());
+
+  const todayD = xm.parse(xm.todayIso);
+  const [x0, x1] = x.domain();
+  if (todayD >= x0 && todayD <= x1) {
+    svg.append('line').attr('x1', x(todayD)).attr('x2', x(todayD)).attr('y1', m.t).attr('y2', H - m.b)
+      .style('stroke', 'var(--cds-chart-reference)').style('stroke-dasharray', '2 3');
+    svg.append('text').attr('x', x(todayD) + 4).attr('y', m.t + 10).text('Today')
+      .style('fill', 'var(--cds-text-secondary)').style('font-size', 'var(--cds-font-size-caption)');
+  }
+  const line = (k) => d3.line().x((r) => x(r.d)).y((r) => y(r[k])).curve(d3.curveLinear);
+  svg.append('path').datum(data).attr('d', line('planned')).attr('fill', 'none')
+    .style('stroke', 'var(--cds-chart-muted)').style('stroke-width', 2).style('stroke-dasharray', '5 4');
+  const soFar = data.filter((r) => r.iso <= xm.todayIso);
+  const wData = soFar.length ? soFar : data.slice(0, 1);
+  svg.append('path').datum(wData).attr('d', line('watched')).attr('fill', 'none')
+    .style('stroke', dash.colors[1]).style('stroke-width', 2.5);
+  const lastW = wData[wData.length - 1];
+  svg.append('circle').attr('cx', x(lastW.d)).attr('cy', y(lastW.watched)).attr('r', 4).style('fill', dash.colors[1]);
+
+  const focus = svg.append('g').style('display', 'none');
+  focus.append('line').attr('y1', m.t).attr('y2', H - m.b).style('stroke', 'var(--cds-chart-axis)');
+  const fp = focus.append('circle').attr('r', 3.5).style('fill', 'var(--cds-chart-muted)');
+  const fw = focus.append('circle').attr('r', 3.5).style('fill', dash.colors[1]);
+  const tip = document.createElement('div'); tip.className = 'xm-tip'; tip.hidden = true;
+  const bis = d3.bisector((r) => r.d).center;
+  const move = (ev) => {
+    const [mx] = d3.pointer(ev, svg.node());
+    const r = data[bis(data, x.invert(mx))];
+    if (!r) return;
+    focus.style('display', null).attr('transform', 'translate(' + x(r.d) + ',0)');
+    fp.attr('cy', y(r.planned));
+    const showW = r.iso <= xm.todayIso;
+    fw.attr('cy', y(r.watched)).style('display', showW ? null : 'none');
+    tip.replaceChildren();
+    const s = document.createElement('strong'); s.textContent = xm.fmtDay(r.d);
+    const a = document.createElement('div'); a.textContent = 'Planned by then: ' + r.planned;
+    const b = document.createElement('div'); b.textContent = showW ? 'Watched: ' + r.watched : 'Watched: not yet';
+    tip.append(s, a, b);
+    tip.hidden = false;
+    const tw = tip.offsetWidth || 150;
+    let left = x(r.d) + 10; if (left + tw > W) left = x(r.d) - tw - 10;
+    tip.style.left = Math.max(0, left) + 'px'; tip.style.top = (m.t + 4) + 'px';
+  };
+  svg.append('rect').attr('x', m.l).attr('y', m.t).attr('width', W - m.l - m.r).attr('height', H - m.t - m.b)
+    .attr('fill', 'transparent')
+    .on('pointermove', move).on('pointerdown', move)
+    .on('pointerleave', () => { focus.style('display', 'none'); tip.hidden = true; });
+  el.replaceChildren(svg.node(), tip);
+});
+</script>
+
+<script>
+// Category bars
+dash.draw('cats', (el) => {
+  const c = dash.data('byCategory');
+  xm.loading(el, c.status);
+  if (c.status === 'error') { const m = document.createElement('p'); m.className = 'xm-error'; m.textContent = "Couldn't load the Watch Plan sheet."; el.replaceChildren(m); return; }
+  if (c.status !== 'ok' || !c.data) { el.replaceChildren(); return; }
+  const max = d3.max(c.data, (r) => r.total) || 1;
+  const tip = document.createElement('div'); tip.className = 'xm-tip'; tip.hidden = true;
+  const rows = c.data.map((r) => {
+    const row = document.createElement('div');
+    row.className = 'xm-cat-row';
+    row.tabIndex = 0;
+    const name = document.createElement('div'); name.className = 'xm-cat-name';
+    const sw = document.createElement('span'); sw.className = 'xm-sw'; sw.style.background = xm.color(r.category);
+    const nt = document.createElement('span'); nt.textContent = r.category;
+    name.append(sw, nt);
+    const wrap = document.createElement('div');
+    const track = document.createElement('div'); track.className = 'xm-track';
+    track.style.width = (r.total / max * 100) + '%';
+    const a = document.createElement('div'); a.style.background = xm.color(r.category); a.style.width = (r.total ? r.watched / r.total * 100 : 0) + '%';
+    const b = document.createElement('div'); b.className = 'xm-seg-left'; b.style.flex = '1';
+    track.append(a, b); wrap.appendChild(track);
+    const val = document.createElement('div'); val.className = 'xm-cat-val';
+    val.textContent = r.watched + ' / ' + r.total;
+    row.append(name, wrap, val);
+    const show = () => {
+      tip.replaceChildren();
+      const s = document.createElement('strong'); s.textContent = r.category;
+      const l1 = document.createElement('div'); l1.textContent = r.watched + ' of ' + r.total + ' watched';
+      const l2 = document.createElement('div'); l2.className = 'muted';
+      l2.textContent = r.topMovie ? 'Best so far: ' + r.topMovie + ' (' + r.topScore + ')' : 'Nothing scored yet';
+      tip.append(s, l1, l2); tip.hidden = false;
+      const tw = Math.min(240, el.clientWidth);
+      tip.style.width = tw + 'px';
+      tip.style.left = Math.max(0, el.clientWidth - tw) + 'px';
+      tip.style.top = (row.offsetTop + row.offsetHeight + 4) + 'px';
+    };
+    row.addEventListener('mouseenter', show); row.addEventListener('focus', show); row.addEventListener('click', show);
+    row.addEventListener('mouseleave', () => { tip.hidden = true; }); row.addEventListener('blur', () => { tip.hidden = true; });
+    return row;
+  });
+  el.replaceChildren(...rows, tip);
+});
+
+dash.draw('best', (tb) => {
+  const c = dash.data('byCategory');
+  if (c.status !== 'ok' || !c.data) { tb.replaceChildren(); return; }
+  tb.replaceChildren(...c.data.map((r) => {
+    const tr = document.createElement('tr');
+    const td1 = document.createElement('td');
+    const sw = document.createElement('span'); sw.className = 'xm-sw'; sw.style.background = xm.color(r.category);
+    td1.append(sw, document.createTextNode(r.category));
+    const td2 = document.createElement('td'); td2.textContent = r.topMovie || '—';
+    const td3 = document.createElement('td'); td3.className = 'num'; td3.textContent = r.topScore === null ? '—' : String(r.topScore);
+    tr.append(td1, td2, td3);
+    return tr;
+  }));
+});
+</script>
+
+<script>
+// Up next and top rated
+dash.draw('upnext', (tb) => {
+  const p = dash.data('plan');
+  const empty = document.querySelectorAll('#upnext-empty');
+  if (p.status !== 'ok') { tb.replaceChildren(); empty.forEach((e) => { e.hidden = true; }); return; }
+  const next = p.data
+    .filter((r) => r['Movie'] && !xm.isW(r['Watched']) && xm.day(r['Date']) && xm.day(r['Date']) >= xm.todayIso)
+    .sort((a, b) => xm.day(a['Date']).localeCompare(xm.day(b['Date'])))
+    .slice(0, 6);
+  empty.forEach((e) => { e.hidden = next.length > 0; });
+  tb.replaceChildren(...next.map((r) => {
+    const tr = document.createElement('tr');
+    const d = xm.day(r['Date']);
+    const td1 = document.createElement('td'); td1.style.whiteSpace = 'nowrap';
+    td1.textContent = d === xm.todayIso ? 'Tonight' : xm.fmtDay(xm.parse(d));
+    const td2 = document.createElement('td');
+    const sw = document.createElement('span'); sw.className = 'xm-sw'; sw.style.background = xm.color(r['Category']);
+    td2.append(sw, document.createTextNode(r['Movie']));
+    const td3 = document.createElement('td'); td3.className = 'when'; td3.textContent = r['Where & when'] || '';
+    tr.append(td1, td2, td3);
+    return tr;
+  }));
+});
+
+dash.draw('top', (tb) => {
+  const p = dash.data('plan');
+  const empty = document.querySelectorAll('#top-empty');
+  if (p.status !== 'ok') { tb.replaceChildren(); empty.forEach((e) => { e.hidden = true; }); return; }
+  const scored = p.data
+    .filter((r) => r['Movie'] && xm.num(r['My Score (1–10)']) !== null)
+    .sort((a, b) => (xm.num(b['My Score (1–10)']) - xm.num(a['My Score (1–10)'])) || ((xm.num(b['Cozy (1–5)']) || 0) - (xm.num(a['Cozy (1–5)']) || 0)))
+    .slice(0, 10);
+  empty.forEach((e) => { e.hidden = scored.length > 0; });
+  tb.replaceChildren(...scored.map((r, i) => {
+    const tr = document.createElement('tr');
+    const td0 = document.createElement('td'); td0.className = 'num'; td0.textContent = String(i + 1);
+    if (i === 0) td0.textContent = '★ 1';
+    const td1 = document.createElement('td');
+    const sw = document.createElement('span'); sw.className = 'xm-sw'; sw.style.background = xm.color(r['Category']);
+    td1.append(sw, document.createTextNode(r['Movie']));
+    const td2 = document.createElement('td'); td2.className = 'num'; td2.textContent = String(xm.num(r['My Score (1–10)']));
+    const cz = xm.num(r['Cozy (1–5)']);
+    const td3 = document.createElement('td'); td3.className = 'num'; td3.textContent = cz === null ? '—' : String(cz);
+    tr.append(td0, td1, td2, td3);
+    return tr;
+  }));
+});
+</script>
+
+<script>xmStart();</script>
+</body>
+</html>
